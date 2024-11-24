@@ -1,33 +1,70 @@
+import User from "../db/models/user.js";
+import Event from "../db/models/event.js";
+import EventResponse from "../db/models/eventresponse.js";
 
-
-export const getAllEvent = async (bot) => {
-  const allEvents = await Event.findAll({});
+export const getAllEvent = async () => {
+  const allEvents = await Event.find();
   return { allEvents };
 };
 
-export async function addUser(user_id, username) {
-  await User.create({ user_id: user_id, username: username });
-}
+export const addUser = async (user_id, username) => {
+  const newUser = new User({ user_id, username });
+  await newUser.save();
+};
 
-export async function findUserOnEvent(event) {
+export async function findUserOnEvent(eventId) {
   try {
-    return await User.findOne({
-      userId: event.EventResponses[0].UserId,
-    });
+    return await User.findOne({ user_id: eventId });
   } catch (error) {
-    console.log("Ошибка");
+    console.log("Ошибка при поиске пользователя:", error);
+    return null;
   }
 }
 
-// bot.js (или где вы создаете событие)
+export const createEvent = async (eventData) => {
+  const newEvent = new Event(eventData);
+  await newEvent.save();
+  return newEvent;
+};
 
-export const createEvent = async (currentEvent) => {
+export const saveEventResponse = async (
+  userId,
+  eventId,
+  username,
+  response
+) => {
   try {
-    const event = new Event(currentEvent);
+    // Проверка на существование записи (если не хотите дублирующих ответов)
+    const existingResponse = await EventResponse.findOne({
+      UserId: userId,
+      EventId: eventId,
+    });
 
-    await event.save();
-    console.log("Событие создано:", event);
-  } catch (error) {
-    console.error("Ошибка при создании события:", error);
+    if (existingResponse) {
+      // Обновляем ответ, если запись уже существует
+      existingResponse.response = response;
+      await existingResponse.save();
+      console.log("Ответ обновлен:", existingResponse);
+
+      const event = await Event.findById(eventId);
+
+      event.EventResponses.push(existingResponse._id); // Добавляем ссылку на новый ответ
+      await event.save();
+    } else {
+      // Создаем новую запись
+      const newResponse = new EventResponse({
+        UserId: String(userId),
+        EventId: eventId,
+        Username: username,
+        response,
+      });
+      await newResponse.save();
+      const event = await Event.findById(eventId);
+      event.EventResponses.push(newResponse._id); // Добавляем ссылку на новый ответ
+      await event.save();
+      console.log("Ответ сохранен:", newResponse);
+    }
+  } catch (err) {
+    console.error("Ошибка сохранения ответа:", err);
   }
 };
