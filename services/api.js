@@ -1,6 +1,7 @@
 import User from "../db/models/user.js";
 import Event from "../db/models/event.js";
 import EventResponse from "../db/models/eventresponse.js";
+import mongoose from "mongoose";
 
 export const getAllEvent = async () => {
   const allEvents = await Event.find();
@@ -22,6 +23,8 @@ export async function findUserOnEvent(eventId) {
 }
 
 export const createEvent = async (eventData) => {
+  console.log((eventData));
+  
   const newEvent = new Event(eventData);
   await newEvent.save();
   return newEvent;
@@ -47,13 +50,11 @@ export const saveEventResponse = async (
       console.log("Ответ обновлен:", existingResponse);
 
       const event = await Event.findById(eventId);
-
-      event.EventResponses.push(existingResponse._id); // Добавляем ссылку на новый ответ
       await event.save();
     } else {
       // Создаем новую запись
       const newResponse = new EventResponse({
-        UserId: String(userId),
+        UserId: userId,
         EventId: eventId,
         Username: username,
         response,

@@ -44,19 +44,20 @@ export const handleEventCreationCallback = async (ctx, eventCreationData) => {
       return;
     }
     // Обработка выбора минут
-    const minuteMatch = ctx.callbackQuery.data.match(/^minute:(\d{2})/);
+    const minuteMatch = ctx.callbackQuery.data.match(/^minute:(\d{1,2})$/); // Изменили регулярное выражение
     if (minuteMatch) {
-      const selectedMinute = minuteMatch[1]; // Получаем выбранные минуты
+      const selectedMinute = minuteMatch[1].padStart(2, "0"); // Добавляем ведущий ноль
       const [date, time] = currentEvent.event_time.split(" ");
       const [hour] = time.split(":");
       const selectedDateTime = `${date} ${hour.padStart(
         2,
         "0"
-      )}:${selectedMinute.padStart(2, "0")}`;
+      )}:${selectedMinute}`;
       currentEvent.event_time = selectedDateTime; // Сохраняем выбранные минуты
-      // Переход к следующему этапу
-      await ctx.answerCallbackQuery();
-      await ctx.editMessageText("Теперь введите приглашение на ивент:");
+      await ctx.answerCallbackQuery(); // Закрыть спиннер на кнопке
+      await ctx.editMessageReplyMarkup(null); // Удаляем клавиатуру
+      await ctx.editMessageText("Пожалуйста, отправьте фото ивента."); // Просим фото
+      currentEvent.waitingForPhoto = true; // Указываем, что ожидаем фото
       return;
     }
     // Обработка изменения месяца

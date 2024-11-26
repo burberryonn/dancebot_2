@@ -5,7 +5,7 @@ const EventSchema = new mongoose.Schema(
   {
     title: {
       type: String,
-      required: true,
+      required: false,
     },
     description: {
       type: String,
@@ -27,6 +27,7 @@ const EventSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    expiresAt: { type: Date, required: true }, // Время истечения
     EventResponses: [
       {
         type: mongoose.Schema.Types.ObjectId,
@@ -36,6 +37,7 @@ const EventSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+EventSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
 const Event = mongoose.model("Event", EventSchema);
 

@@ -1,15 +1,16 @@
-// db/models/eventResponse.js
-import mongoose from "mongoose";
+import mongoose from 'mongoose';
 
 const EventResponseSchema = new mongoose.Schema({
-  UserId: { type: String, required: true }, // Используем String, а не Number
-
+  UserId: {
+    type: Number,
+    ref: "User", // предполагается, что модель пользователя называется User
+    required: true
+  },
   EventId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "Event",
     required: true,
   },
-
   Username: {
     type: String,
     required: true,

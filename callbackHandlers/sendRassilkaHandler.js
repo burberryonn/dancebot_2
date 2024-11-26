@@ -26,24 +26,18 @@ export const sendRepeatRassilkaHandler = async (ctx) => {
 
     console.log("Найденный ивент:", event);
 
-    const message = `${
-      event.invitation_message
-    }\n\n🧘‍♀️Приглашаю всех присутствующих на "<b>${
-      event.title
-    }</b>"🧘‍♀️\n\n<i>Когда?</i> <b>${new Date(event.event_time).toLocaleString(
-      "ru-RU",
-      {
-        day: "numeric",
-        month: "numeric",
-        weekday: "long",
-        hour: "numeric",
-        minute: "numeric",
-      }
-    )}</b>\n\n<i>Где?</i> <b>${
-      event.address
-    }</b>\n\n<i>Что берем с собой?</i> <b>Прекрасное настроение, удобную одежду, водичку)</b>\n\n<i>Что нас ждет?</i> <b>${
+    const message = `${event.invitation_message}\n\n<i>Когда?</i> ${new Date(
+      event.event_time
+    ).toLocaleString("ru-RU", {
+      day: "numeric",
+      month: "numeric",
+      weekday: "long",
+      hour: "numeric",
+      minute: "numeric",
+    })}\n\n<i>Где?</i> ${event.address}\n\n${
       event.description || "Подробности уточняются."
-    }</b>\n\nЗаписаться можно через личные сообщения <b>@vslomalinafik</b> 💌`;
+    }
+      `;
 
     console.log("Готовое сообщение для рассылки:", message);
 

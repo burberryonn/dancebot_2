@@ -13,7 +13,7 @@ export async function repeatRassilka(message, photo, bot, eventId) {
   console.log("Найденные ответы на ивент:", eventResponses);
 
   const usersToNotify = users.filter((user) => {
-    return !eventResponses.some((response) => response.UserId === user.user_id);
+    return !eventResponses.some((response) => response.UserId === Number(user.user_id));
   });
 
   console.log("Пользователи для уведомления:", usersToNotify);
@@ -64,7 +64,7 @@ export async function sendRassilka(message, photo, bot, eventId) {
     if (!photo) {
       for (const user of usersToNotify) {
         await bot.api.sendMessage(user.user_id, message, {
-          parse_mode: "Markdown",
+          parse_mode: "HTML",
           reply_markup: answerKeyboard,
         });
       }
@@ -73,7 +73,7 @@ export async function sendRassilka(message, photo, bot, eventId) {
         await bot.api.sendPhoto(user.user_id, photo, {
           caption: message,
           reply_markup: answerKeyboard,
-          parse_mode: "Markdown",
+          parse_mode: "HTML",
         });
       }
     }

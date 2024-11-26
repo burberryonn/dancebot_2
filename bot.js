@@ -7,15 +7,17 @@ import { changeEventHandler } from "./callbackHandlers/changeEventHandler.js";
 import { eventResponseHandler } from "./callbackHandlers/eventResponseHandler.js";
 import { eventPageHandler } from "./callbackHandlers/eventPageHandler.js";
 import { sendRepeatRassilkaHandler } from "./callbackHandlers/sendRassilkaHandler.js";
-import { updateResults } from "./callbackHandlers/eventGetlastupdate.js";
+import {
+  generateEventTexts,
+  startRealTimeUpdates,
+} from "./callbackHandlers/eventGetlastupdate.js";
 import startServer from "./server.js";
-import { createEvent, getAllEvent, saveEventResponse } from "./services/api.js";
+import { createEvent, getAllEvent } from "./services/api.js";
 import { generateDateTimeSelector } from "./utils/calendar.js";
 import { sendRassilka } from "./utils/rassilka.js";
-import { response } from "express";
 
 const bot = new Bot(process.env.BOT_API_KEY);
-const ADMIN_ID = Number(process.env.ADMIN_ID);
+const ADMIN_ID = Number(process.env.ADMIN_ID_2);
 const eventCreationData = {};
 
 bot.command("start", async (ctx) => {
@@ -44,14 +46,6 @@ bot.callbackQuery("subscribe", subscribeHandler);
 
 bot.callbackQuery("unsubscribe", unsubscribeHandler);
 
-// bot.callbackQuery(/^(yes|no)_(\d+)$/, async (ctx) => {
-//   const [fullMatch, response, eventId] = ctx.match;
-//   console.log(`Full match: ${fullMatch}`);
-
-//   const responseText = response === "yes" ? "Пойду" : "Не пойду";
-//   console.log(`Ответ: ${responseText}, Event ID: ${eventId}`);
-//   await ctx.answerCallbackQuery(`Ваш ответ: ${responseText}`);
-// });
 bot.callbackQuery(/^(yes|no)_[a-f0-9]{24}$/, eventResponseHandler);
 
 bot.callbackQuery(/^sendrassilka:[a-f0-9]{24}$/, sendRepeatRassilkaHandler);
@@ -59,7 +53,6 @@ bot.callbackQuery(/^sendrassilka:[a-f0-9]{24}$/, sendRepeatRassilkaHandler);
 bot.callbackQuery(/^change_event:(\d+)/, changeEventHandler);
 
 bot.callbackQuery(/^event_page:(\d+)/, eventPageHandler);
-
 
 bot.callbackQuery("cancel", async (ctx) => {
   await ctx.answerCallbackQuery("Выбор отменён.");
@@ -78,20 +71,14 @@ bot.hears("Результаты", async (ctx) => {
   if (ctx.from.id !== ADMIN_ID) {
     return ctx.reply("Эта команда доступна только администратору.");
   }
-  let lastUpdate = null;
-  let lastText = "";
-  const results = await updateResults(
-    ctx.message.message_id,
-    lastText,
-    ctx,
-    bot,
-    lastUpdate
-  );
-  const pages = results.responseText.split("\n\n---\n\n");
-  const totalPages = pages.length;
+
+  const eventTexts = await generateEventTexts();
+  const totalPages = eventTexts.length;
+
   if (!totalPages) {
     return ctx.reply("Нет созданных ивентов.");
   }
+
   const getKeyboard = (page) => {
     const keyboard = new InlineKeyboard();
     if (page > 0) keyboard.text("⬅️ Назад", `event_page:${page - 1}`);
@@ -99,10 +86,13 @@ bot.hears("Результаты", async (ctx) => {
       keyboard.text("Вперед ➡️", `event_page:${page + 1}`);
     return keyboard;
   };
-  await ctx.reply(pages[0], {
+
+  const message = await ctx.reply(eventTexts[0], {
     parse_mode: "HTML",
     reply_markup: getKeyboard(0),
   });
+
+  startRealTimeUpdates(ctx, bot, message.message_id, totalPages);
 });
 
 bot.hears("Ивенты", async (ctx) => {
@@ -121,10 +111,20 @@ bot.hears("Ивенты", async (ctx) => {
         `change_event:${index + 1}`
       );
     try {
+      const message = `${event.invitation_message}\n\n<i>Когда?</i> ${new Date(
+        event.event_time
+      ).toLocaleString("ru-RU", {
+        day: "numeric",
+        month: "numeric",
+        weekday: "long",
+        hour: "numeric",
+        minute: "numeric",
+      })}\n\n<i>Где?</i> ${event.address}\n\n${
+        event.description || "Подробности уточняются."
+      }
+        `;
       await ctx.replyWithPhoto(event.image, {
-        caption: `<b>Ивент:${event.title}</b>\n\nАдрес: ${
-          event.address
-        }\n\nОписание: ${event.description || "Описание отсутствует"}`,
+        caption: message,
         reply_markup: keyboard,
         parse_mode: "HTML",
       });
@@ -165,30 +165,38 @@ bot.on("message", async (ctx) => {
   }
   if (!currentEvent.event_time && currentEvent.waitingForDate) {
     currentEvent.event_time = new Date(ctx.message.text);
+
+    console.log(currentEvent);
     if (isNaN(currentEvent.event_time)) {
       return ctx.reply("Неверный формат даты. Пожалуйста, попробуйте снова.");
     }
+
     currentEvent.waitingForDate = false;
   }
   if (!currentEvent.image && currentEvent.waitingForPhoto) {
     if (ctx.message.photo && ctx.message.photo.length > 0) {
       const photo = ctx.message.photo[ctx.message.photo.length - 1].file_id;
       currentEvent.image = photo;
-      await ctx.reply("Фото сохранено. Событие создается...");
+      currentEvent.expiresAt = currentEvent.event_time;
+
+      await ctx.reply("Событие создано и разослано...");
       try {
         const event = await createEvent(currentEvent);
         delete eventCreationData[ctx.from.id];
-        const message = `${event.invitation_message}\n\n${
-          event.title
-        }\n\nКогда?${new Date(event.event_time).toLocaleString("ru-RU", {
-          day: "numeric",
-          month: "numeric",
-          weekday: "long",
-          hour: "numeric",
-          minute: "numeric",
-        })}\n\nГде?${event.address}\n\n${
+        const message = `${
+          event.invitation_message
+        }\n\n<i>Когда?</i> ${new Date(event.event_time).toLocaleString(
+          "ru-RU",
+          {
+            day: "numeric",
+            month: "numeric",
+            weekday: "long",
+            hour: "numeric",
+            minute: "numeric",
+          }
+        )}\n\n<i>Где?</i> ${event.address}\n\n${
           event.description || "Подробности уточняются."
-        }Записаться можно через личные сообщения @vslomalinafik 💌
+        }
           `;
         await sendRassilka(message, currentEvent.image, bot, event.id);
       } catch (error) {
@@ -205,16 +213,9 @@ bot.on("message", async (ctx) => {
   }
 });
 
-// Обработка callbackQuery для подписки
-
 bot.on("callback_query", (ctx) =>
   handleEventCreationCallback(ctx, eventCreationData)
 );
 
-// Обработка команд и сообщений
-
-// Другие обработчики команд и сообщений
-
-// Запуск бота
 await startServer();
 bot.start();
